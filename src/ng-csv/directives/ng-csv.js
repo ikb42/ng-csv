@@ -21,7 +21,8 @@ angular.module('ngCsv.directives').
         addByteOrderMarker: "@addBom",
         ngClick: '&',
         charset: '@charset',
-        label: '&csvLabel'
+        label: '&csvLabel',
+        loaddemand: '&csvLoaddemand'
       },
       controller: [
         '$scope',
@@ -76,14 +77,15 @@ angular.module('ngCsv.directives').
               $element.removeClass($attrs.ngCsvLoadingClass || 'ng-csv-loading');
               deferred.resolve(csv);
             });
-            $scope.$apply(); // Old angular support
+//            $scope.$apply(); // Old angular support
 
             return deferred.promise;
           };
         }
       ],
       link: function (scope, element, attrs) {
-        function doClick() {
+        function doClick(cb) {
+          if (!cb) cb = angular.noop;
           var charset = scope.charset || "utf-8";
           var blob = new Blob([scope.csv], {
             type: "text/csv;charset="+ charset + ";"
@@ -91,6 +93,7 @@ angular.module('ngCsv.directives').
 
           if (window.navigator.msSaveOrOpenBlob) {
             navigator.msSaveBlob(blob, scope.getFilename());
+            cb(true);
           } else {
 
             var downloadContainer = angular.element('<div data-tap-disabled="true"><a></a></div>');
@@ -103,8 +106,22 @@ angular.module('ngCsv.directives').
             $timeout(function () {
               downloadLink[0].click();
               downloadLink.remove();
+              cb(true);
             }, null);
           }
+        }
+        
+        if (scope.loaddemand) {
+            var getFn = scope.$eval(scope.loaddemand);
+            getFn(clickFn);
+        }
+        
+        function clickFn(fileName, cb) {
+            if (fileName) scope.filename = fileName;
+            scope.buildCSV().then(function (csv) {
+              doClick(cb);
+            });
+            if (!cb) scope.$apply();
         }
 
         element.bind('click', function (e) {
